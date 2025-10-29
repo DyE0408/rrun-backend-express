@@ -1,0 +1,39 @@
+{
+  "name": "backend-wallerfly",
+  "version": "1.0.0",
+  "description": "Backend project",
+  "keywords": [
+    "wallerfly",
+    "express"
+  ],
+  "homepage": "https://github.com/Slowre/backend-wallerfly#readme",
+  "bugs": {
+    "url": "https://github.com/Slowre/backend-wallerfly/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Slowre/backend-wallerfly.git"
+  },
+  "license": "ISC",
+  "author": "Erding Flores",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon index.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cloudinary": "^1.41.3",
+    "dotenv": "^17.2.2",
+    "express": "5.1.0",
+    "firebase-admin": "^13.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.18.2",
+    "multer": "^1.4.5-lts.1",
+    "multer-storage-cloudinary": "^4.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
