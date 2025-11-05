@@ -663,9 +663,171 @@ const updatePayExpense = (groupId, expenseId, participantId, paid, callback) => 
     });
 };
 
+const sendReminder = (groupId, expenseId, callback) => {
+  Group.findById(groupId)
+    .populate("expenses.paidBy", "name email")
+    .populate("expenses.participants.user", "name email fcmToken")
+    .then((group) => {
+      if (!group) {
+        return res.status(404).json({ code: "NF", message: "Grupo no encontrado" });
+      }
+
+      // 2️⃣ Buscar gasto dentro del grupo
+      const expense = group.expenses.id(expenseId);
+      if (!expense) {
+        return res.status(404).json({ code: "NF", message: "Gasto no encontrado" });
+      }
+
+      const pendientes = expense.participants.filter(
+        (p) =>
+          !p.paid &&
+          !p.isDeleted &&
+          p.user &&
+          p.user.fcmToken &&
+          p.user.fcmToken !== "none"
+      );
+
+      if (pendientes.length === 0) {
+        return res.json({
+          code: "OK",
+          message: "Todos los participantes ya pagaron",
+        });
+      }
+
+      // 4️⃣ Tokens válidos
+      const tokens = pendientes.map((p) => p.user.fcmToken);
 
 
 
+      const title = "Recordatorio de pago pendiente";
+      const body = `${expense.paidBy.name} te recuerda pagar tu parte del gasto "${expense.description}" del grupo "${group.name}"`;
+      const data = {
+        type: "EXPENSE_REMINDER",
+        groupId: group._id.toString(),
+        expenseId: expense._id.toString(),
+      };
+
+      // 6️⃣ Enviar notificación sin bloquear respuesta
+      sendPushNotification(tokens, title, body, data)
+        .then((response) => {
+          console.log("✅ Recordatorios enviados:", response.successCount);
+          return callback(null, true);
+        })
+        .catch((error) => {
+          console.error("⚠️ Error al enviar recordatorios:", error);
+        });
+
+
+
+
+
+
+
+
+
+    })
+    .catch((err) => {
+      logger.error(`❌ Error al actualizar gasto (${expenseId}) en grupo (${groupId}): ${err.message}`);
+      return callback(err);
+    })
+
+
+
+}
+
+
+
+const updateExpense = (groupId, expenseId, updateData, callback) => {
+  const {
+    description,
+    type,
+    totalAmount,
+    splitType,
+    date,
+    participants = [],
+    imagesNew = [],
+    imagesToRemove = []
+  } = updateData || {};
+
+  Group.findById(groupId)
+    .then(async (group) => {
+      if (!group) {
+        logger.warn(`⚠️ Grupo no encontrado: ${groupId}`);
+        return callback(null, null);
+      }
+
+      const expense = group.expenses.id(expenseId);
+      if (!expense) {
+        logger.warn(`⚠️ Gasto no encontrado: ${expenseId} en grupo ${groupId}`);
+        return callback(null, null);
+      }
+
+      // 1) Campos básicos (solo si vienen definidos)
+      if (description !== undefined) expense.description = description;
+      if (type !== undefined) expense.type = type;
+      if (totalAmount !== undefined) expense.totalAmount = parseFloat(totalAmount);
+      if (splitType !== undefined) expense.splitType = splitType;
+      if (date !== undefined) expense.date = new Date(date);
+
+      // 2) Participantes
+      if (Array.isArray(participants)) {
+        expense.participants = participants.map(p => ({
+          user: p.user,
+          amountOwed: Number(p.amountOwed ?? p.amount ?? 0),
+          paid: Boolean(p.paid ?? false),
+          isDeleted: Boolean(p.isDeleted ?? false)
+        }));
+      }
+
+      // 3) Eliminar imágenes solicitadas (Cloudinary + array)
+      if (Array.isArray(imagesToRemove) && imagesToRemove.length > 0) {
+        for (const publicId of imagesToRemove) {
+          try {
+            await cloudinary.uploader.destroy(publicId);
+            logger.info(`🗑️ Imagen eliminada de Cloudinary: ${publicId}`);
+          } catch (cloudErr) {
+            logger.warn(`⚠️ No se pudo eliminar imagen ${publicId} de Cloudinary: ${cloudErr.message}`);
+          }
+        }
+        expense.images = expense.images.filter(img => !imagesToRemove.includes(img.publicId));
+      }
+
+      // 4) Agregar nuevas imágenes (ya subidas por multer-storage-cloudinary)
+      if (Array.isArray(imagesNew) && imagesNew.length > 0) {
+        for (const img of imagesNew) {
+          if (img?.url && img?.publicId) {
+            expense.images.push({
+              url: img.url,
+              publicId: img.publicId
+            });
+          }
+        }
+      }
+
+      // 5) Guardar
+      return group.save();
+    })
+    .then((savedGroup) => {
+      if (!savedGroup) return; // ya respondimos arriba con null/null
+
+      // 6) Popular para respuesta consistente con el resto
+      return Group.findById(groupId)
+        .populate("createdBy", "name email")
+        .populate("members.user", "name email")
+        .populate("expenses.paidBy", "name email")
+        .populate("expenses.participants.user", "name email isDeleted")
+        .lean();
+    })
+    .then((populatedGroup) => {
+      if (!populatedGroup) return; // caso ya gestionado
+      logger.info(`✅ Gasto ${expenseId} actualizado en grupo ${groupId}`);
+      return callback(null, populatedGroup);
+    })
+    .catch((err) => {
+      logger.error(`❌ Error al actualizar gasto (${expenseId}) en grupo (${groupId}): ${err.message}`);
+      return callback(err);
+    });
+};
 
 
 
@@ -674,7 +836,9 @@ const updatePayExpense = (groupId, expenseId, participantId, paid, callback) => 
 // 🔄 Exportar métodos
 // ========================================================
 export default {
+  sendReminder,
   Group,
+  updateExpense,
   sendExpenseNotification,
   sendNotification,
   saveGroup,

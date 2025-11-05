@@ -74,9 +74,17 @@ const getExpenseById = (expenseId, callback)=>{
   return GroupsSchema.findExpenseById(expenseId, callback)
 }
 
+const updateExpense = (groupId, expenseId, updateData, callback) => {
+  return GroupsSchema.updateExpense(groupId, expenseId, updateData, callback);
+};
 
+const sendReminder = (groupId, expenseId,callback )=>{
+  return GroupsSchema.sendReminder(groupId, expenseId,callback)
+}
 
 export default {
+  sendReminder,
+  updateExpense,
   getExpenseById,
   sendExpenseNotification,
   sendNotification,

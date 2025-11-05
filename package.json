@@ -15,7 +15,7 @@
     "url": "git+https://github.com/Slowre/backend-wallerfly.git"
   },
   "license": "ISC",
-  "author": "Erding Flores",
+  "author": "Angela",
   "type": "module",
   "main": "index.js",
   "scripts": {

@@ -93,7 +93,7 @@ router.get("/", async (req, res) => {
 // 🔍 Obtener grupo por ID
 // ======================================================
 router.get("/:id", (req, res) => {
-  
+
   Groups.getGroupById(req.params.id, (err, group) => {
     if (err) return res.status(500).json({ code: "ER", message: "Error obteniendo grupo!" });
     if (!group) return res.status(404).json({ code: "NF", message: "Grupo no encontrado!" });
@@ -338,4 +338,70 @@ router.put("/:groupId/expenses/:expenseId/participantPaid", (req, res) => {
 
 
 
+
+router.put("/:groupId/expenses/:expenseId", upload.array("images", 5), async (req, res) => {
+  const { groupId, expenseId } = req.params;
+
+  // Campos de texto
+  const { description, type, totalAmount, splitType, date } = req.body;
+
+  // participants e imagesToRemove llegan como string JSON desde Android
+  let participants = [];
+  let imagesToRemove = [];
+
+  try {
+    if (typeof req.body.participants === "string") {
+      participants = JSON.parse(req.body.participants);
+    } else if (Array.isArray(req.body.participants)) {
+      participants = req.body.participants;
+    }
+  } catch (e) {
+    return res.status(400).json({ code: "ER", message: "participants debe ser JSON válido" });
+  }
+
+  try {
+    if (typeof req.body.imagesToRemove === "string") {
+      imagesToRemove = JSON.parse(req.body.imagesToRemove);
+    } else if (Array.isArray(req.body.imagesToRemove)) {
+      imagesToRemove = req.body.imagesToRemove;
+    }
+  } catch (e) {
+    return res.status(400).json({ code: "ER", message: "imagesToRemove debe ser JSON válido" });
+  }
+
+  // Nuevas imágenes (ya subidas por CloudinaryStorage)
+  const imagesNew = (req.files || []).map(f => ({
+    url: f.path,                 // URL segura
+    publicId: f.filename || null // public_id en CloudinaryStorage
+  }));
+
+  const updateData = {
+    description,
+    type,
+    totalAmount,
+    splitType,
+    date,
+    participants,    // arreglo ya parseado
+    imagesNew,       // nuevas imágenes a añadir
+    imagesToRemove,  // publicIds a eliminar
+  };
+
+  return Groups.updateExpense(groupId, expenseId, updateData, (err, updatedGroup) => {
+    if (err) {
+      return res.status(500).json({ code: "ER", message: err.message || "Error actualizando gasto!" });
+    }
+    if (!updatedGroup) {
+      return res.status(404).json({ code: "NF", message: "Grupo o gasto no encontrado!" });
+    }
+
+    // Opcional: también puedes devolver solo el expense actualizado
+    const expense = updatedGroup.expenses.find(e => String(e._id) === String(expenseId));
+
+    return res.json({
+      code: "OK",
+      message: "Gasto actualizado correctamente",
+      data: { group: updatedGroup, expense }
+    });
+  });
+});
 export default router;
