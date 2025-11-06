@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import logger from '../utils/logger.js';
-import Group from './groups.js'
+import GroupsSchema from './groups.js';
+const Group = GroupsSchema.Group;
 
 
 
