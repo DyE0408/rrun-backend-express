@@ -271,49 +271,76 @@ const updatePassword = async (userId, oldPass, newPass, callback) => {
 };
 
 const addContactAndMember = (userId, contactId, groupId, callback) => {
-  // 1️⃣ Verificar usuarios
-  User.findById(userId, (err, user) => {
-    if (err || !user) return callback({ message: "Usuario no encontrado" });
+  let contactData = null;
+  let groupData = null;
 
-    User.findById(contactId, (err, contact) => {
-      if (err || !contact)
-        return callback({ message: "Contacto no encontrado" });
-
-      // 2️⃣ Agregar contacto si no existe
-      if (!user.contacts.includes(contactId)) {
-        user.contacts.push(contactId);
-        user.save((err) => {
-          if (err) return callback({ message: "Error guardando contacto" });
-        });
+  // 1️⃣ Buscar usuario principal
+  User.findById(userId)
+    .then(user => {
+      if (!user) {
+        return callback({ message: "Usuario no encontrado" });
       }
 
-      // 3️⃣ Buscar grupo y añadir miembro
-      Group.findById(groupId, (err, group) => {
-        if (err || !group)
-          return callback({ message: "Grupo no encontrado" });
-
-        const exists = group.members.some(
-          (m) => m.user.toString() === contactId.toString()
-        );
-
-        if (!exists) {
-          group.members.push({ user: contactId, isDeleted: false });
-          group.save((err) => {
-            if (err)
-              return callback({ message: "Error al agregar miembro al grupo" });
-          });
+      // 2️⃣ Buscar contacto
+      return User.findById(contactId).then(contact => {
+        if (!contact) {
+          return callback({ message: "Contacto no encontrado" });
         }
 
-        // 4️⃣ Devolver resultado
-        const result = {
-          contact: { id: contact._id, name: contact.name, email: contact.email },
-          group: { id: group._id, name: group.name }
-        };
+        contactData = contact; // guardamos para devolver al final
 
-        return callback(null, result);
+        // 3️⃣ Agregar contacto si no existe
+        if (!user.contacts.includes(contactId)) {
+          user.contacts.push(contactId);
+          return user.save(); // devolvemos la promesa
+        }
+
+        return null; // nada que guardar
       });
+    })
+    .then(() => {
+      // 4️⃣ Buscar grupo
+      return Group.findById(groupId);
+    })
+    .then(group => {
+      if (!group) {
+        return callback({ message: "Grupo no encontrado" });
+      }
+
+      groupData = group;
+
+      // 5️⃣ Agregar miembro si no existe
+      const exists = group.members.some(
+        (m) => m.user.toString() === contactId.toString()
+      );
+
+      if (!exists) {
+        group.members.push({ user: contactId, isDeleted: false });
+        return group.save();
+      }
+
+      return null;
+    })
+    .then(() => {
+      // 6️⃣ Éxito final
+      const result = {
+        contact: {
+          id: contactData._id,
+          name: contactData.name,
+          email: contactData.email
+        },
+        group: {
+          id: groupData._id,
+          name: groupData.name
+        }
+      };
+
+      return callback(null, result);
+    })
+    .catch(err => {
+      console.error("❌ Error en addContactAndMember:", err);
+      return callback({ message: err.message });
     });
-  });
 };
 
 
