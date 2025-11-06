@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import logger from '../utils/logger.js';
+import Group from './groups.js'
 
 
 
@@ -269,6 +270,53 @@ const updatePassword = async (userId, oldPass, newPass, callback) => {
     }
 };
 
+const addContactAndMember = (userId, contactId, groupId, callback) => {
+  // 1️⃣ Verificar usuarios
+  User.findById(userId, (err, user) => {
+    if (err || !user) return callback({ message: "Usuario no encontrado" });
+
+    User.findById(contactId, (err, contact) => {
+      if (err || !contact)
+        return callback({ message: "Contacto no encontrado" });
+
+      // 2️⃣ Agregar contacto si no existe
+      if (!user.contacts.includes(contactId)) {
+        user.contacts.push(contactId);
+        user.save((err) => {
+          if (err) return callback({ message: "Error guardando contacto" });
+        });
+      }
+
+      // 3️⃣ Buscar grupo y añadir miembro
+      Group.findById(groupId, (err, group) => {
+        if (err || !group)
+          return callback({ message: "Grupo no encontrado" });
+
+        const exists = group.members.some(
+          (m) => m.user.toString() === contactId.toString()
+        );
+
+        if (!exists) {
+          group.members.push({ user: contactId, isDeleted: false });
+          group.save((err) => {
+            if (err)
+              return callback({ message: "Error al agregar miembro al grupo" });
+          });
+        }
+
+        // 4️⃣ Devolver resultado
+        const result = {
+          contact: { id: contact._id, name: contact.name, email: contact.email },
+          group: { id: group._id, name: group.name }
+        };
+
+        return callback(null, result);
+      });
+    });
+  });
+};
+
+
 export default {
     User,
     updatePassword,
@@ -280,6 +328,7 @@ export default {
     findUserByEmail,
     findUserByEmailWithoutPass,
     findUserByEmailWithoutPassContacts,
+    addContactAndMember,
     addContact,
     removeContact,
     getContacts,

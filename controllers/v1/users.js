@@ -190,6 +190,29 @@ router.put('/actions/changePassword', (req, res) => {
 
 })
 
+router.post("/contacts/add", (req, res) => {
+  const { userId, contactId, groupId } = req.body;
+
+  if (!userId || !contactId || !groupId) {
+    return res.status(400).json({
+      code: "ER",
+      message: "Faltan campos requeridos (userId, contactId, groupId)"
+    });
+  }
+
+  Users.addContactAndMember(userId, contactId, groupId, (err, result) => {
+    if (err) {
+      console.error("❌ Error:", err);
+      return res.status(500).json({ code: "ERU", message: err.message });
+    }
+
+    return res.json({
+      code: "OK",
+      message: "Contacto agregado y miembro añadido correctamente",
+      data: result
+    });
+  });
+});
 
 
 export default router;

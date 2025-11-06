@@ -76,6 +76,9 @@ const updatePassword = (userId, oldPass, newPass, callback) => {
     return UsersSchema.updatePassword(userId, oldPass, newPass, callback);
 }
 
+const addContactAndMember = (userId, contactId, groupId,callback)=>{
+    return UsersSchema.addContactAndMember(userId, contactId, groupId,callback)
+}
 
 
-export default { getAllContacts, updatePassword, saveUser, updateFcmToken, getAllUsers, getUserById, getUserByEmail, findUserByEmailWithoutPass, getUserByEmailWithoutPassContacts, updateUser, deleteUser, loginUser, addContact, removeContact, getContacts }
+export default { addContactAndMember, getAllContacts, updatePassword, saveUser, updateFcmToken, getAllUsers, getUserById, getUserByEmail, findUserByEmailWithoutPass, getUserByEmailWithoutPassContacts, updateUser, deleteUser, loginUser, addContact, removeContact, getContacts }
