@@ -669,8 +669,8 @@ const sendReminder = (groupId, expenseId, callback) => {
     .populate("expenses.participants.user", "name email fcmToken")
     .then((group) => {
       if (!group) {
-         logger.warn(`⚠️ Grupo no encontrado: ${groupId}`);
-        return callback(null,false,false)
+        logger.warn(`⚠️ Grupo no encontrado: ${groupId}`);
+        return callback(null, false, false)
         //return res.status(404).json({ code: "NF", message: "Grupo no encontrado" });
       }
 
@@ -678,7 +678,7 @@ const sendReminder = (groupId, expenseId, callback) => {
       const expense = group.expenses.id(expenseId);
       if (!expense) {
         logger.warn(`⚠️ Gasto no encontrado: ${expenseId}`);
-        return callback(null,true, false)
+        return callback(null, true, false)
         //return res.status(404).json({ code: "NF", message: "Gasto no encontrado" });
       }
 
@@ -693,7 +693,7 @@ const sendReminder = (groupId, expenseId, callback) => {
 
       if (pendientes.length === 0) {
         logger.warn(`⚠️ Todos los participantes ya pagaron`);
-        return callback(null,true, true)
+        return callback(null, true, true)
         // return res.json({
         //   code: "OK",
         //   message: "Todos los participantes ya pagaron",
@@ -717,7 +717,7 @@ const sendReminder = (groupId, expenseId, callback) => {
       sendPushNotification(tokens, title, body, data)
         .then((response) => {
           console.log("✅ Recordatorios enviados:", response.successCount);
-          return callback(null, true,true);
+          return callback(null, true, true);
         })
         .catch((error) => {
           console.error("⚠️ Error al enviar recordatorios:", error);
@@ -745,7 +745,6 @@ const updateExpense = (groupId, expenseId, updateData, callback) => {
     imagesNew = [],
     imagesToRemove = []
   } = updateData || {};
-
   Group.findById(groupId)
     .then(async (group) => {
       if (!group) {
@@ -759,55 +758,105 @@ const updateExpense = (groupId, expenseId, updateData, callback) => {
         return callback(null, null);
       }
 
-      // 1) Campos básicos (solo si vienen definidos)
+      // 1️⃣ Actualizar campos básicos
       if (description !== undefined) expense.description = description;
       if (type !== undefined) expense.type = type;
       if (totalAmount !== undefined) expense.totalAmount = parseFloat(totalAmount);
       if (splitType !== undefined) expense.splitType = splitType;
       if (date !== undefined) expense.date = new Date(date);
 
-      // 2) Participantes
+      // 2️⃣ Participantes
       if (Array.isArray(participants)) {
-        expense.participants = participants.map(p => ({
+        expense.participants = participants.map((p) => ({
           user: p.user,
           amountOwed: Number(p.amountOwed ?? p.amount ?? 0),
           paid: Boolean(p.paid ?? false),
-          isDeleted: Boolean(p.isDeleted ?? false)
+          isDeleted: Boolean(p.isDeleted ?? false),
         }));
       }
 
-      // 3) Eliminar imágenes solicitadas (Cloudinary + array)
+      // 3️⃣ Asegurar que todos los participantes estén como miembros del grupo
+      const participantIds = expense.participants
+        ?.map((p) => p.user?.toString())
+        .filter(Boolean) || [];
+
+      const existingMembers = new Map(
+        (group.members || []).map((m) => [m.user.toString(), m])
+      );
+
+      participantIds.forEach((uid) => {
+        const member = existingMembers.get(uid);
+        if (!member) {
+          group.members.push({ user: uid, isDeleted: false });
+          logger.info(`👥 Miembro agregado al grupo por ser participante: ${uid}`);
+        } else if (member.isDeleted) {
+          member.isDeleted = false;
+          logger.info(`🔁 Miembro reactivado (isDeleted=false): ${uid}`);
+        }
+      });
+
+      // 4️⃣ Eliminar imágenes si corresponde (de Cloudinary y del array)
       if (Array.isArray(imagesToRemove) && imagesToRemove.length > 0) {
         for (const publicId of imagesToRemove) {
           try {
             await cloudinary.uploader.destroy(publicId);
             logger.info(`🗑️ Imagen eliminada de Cloudinary: ${publicId}`);
           } catch (cloudErr) {
-            logger.warn(`⚠️ No se pudo eliminar imagen ${publicId} de Cloudinary: ${cloudErr.message}`);
+            logger.warn(`⚠️ No se pudo eliminar imagen ${publicId}: ${cloudErr.message}`);
           }
         }
-        expense.images = expense.images.filter(img => !imagesToRemove.includes(img.publicId));
+        expense.images = (expense.images || []).filter(
+          (img) => !imagesToRemove.includes(img.publicId)
+        );
       }
 
-      // 4) Agregar nuevas imágenes (ya subidas por multer-storage-cloudinary)
+      // 5️⃣ Agregar nuevas imágenes (ya subidas por multer-storage-cloudinary)
       if (Array.isArray(imagesNew) && imagesNew.length > 0) {
         for (const img of imagesNew) {
           if (img?.url && img?.publicId) {
             expense.images.push({
               url: img.url,
-              publicId: img.publicId
+              publicId: img.publicId,
             });
           }
         }
       }
 
-      // 5) Guardar
-      return group.save();
+      // 6️⃣ Guardar grupo actualizado
+      const savedGroup = await group.save();
+
+      // 7️⃣ Asegurar contactos del actor (quien ejecuta)
+      try {
+        const resolvedActorId =
+          actorUserId?.toString?.() ||
+          expense?.paidBy?.toString?.() ||
+          group?.createdBy?.toString?.();
+
+        if (resolvedActorId) {
+          const targetIds = [...new Set(participantIds)].filter(
+            (uid) => uid !== resolvedActorId
+          );
+
+          if (targetIds.length > 0) {
+            await User.findByIdAndUpdate(
+              resolvedActorId,
+              { $addToSet: { contacts: { $each: targetIds } } },
+              { new: false }
+            );
+            logger.info(
+              `🤝 Contactos agregados al usuario ${resolvedActorId}: ${targetIds.length} participante(s)`
+            );
+          }
+        }
+      } catch (err) {
+        logger.warn(`⚠️ Error al agregar contactos: ${err.message}`);
+      }
+
+      return savedGroup;
     })
     .then((savedGroup) => {
-      if (!savedGroup) return; // ya respondimos arriba con null/null
+      if (!savedGroup) return;
 
-      // 6) Popular para respuesta consistente con el resto
       return Group.findById(groupId)
         .populate("createdBy", "name email")
         .populate("members.user", "name email")
@@ -816,17 +865,17 @@ const updateExpense = (groupId, expenseId, updateData, callback) => {
         .lean();
     })
     .then((populatedGroup) => {
-      if (!populatedGroup) return; // caso ya gestionado
+      if (!populatedGroup) return;
       logger.info(`✅ Gasto ${expenseId} actualizado en grupo ${groupId}`);
       return callback(null, populatedGroup);
     })
     .catch((err) => {
-      logger.error(`❌ Error al actualizar gasto (${expenseId}) en grupo (${groupId}): ${err.message}`);
+      logger.error(
+        `❌ Error al actualizar gasto (${expenseId}) en grupo (${groupId}): ${err.message}`
+      );
       return callback(err);
     });
 };
-
-
 
 
 // ========================================================
