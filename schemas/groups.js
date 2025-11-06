@@ -734,7 +734,7 @@ const sendReminder = (groupId, expenseId, callback) => {
 
 
 
-const updateExpense = (groupId, expenseId, updateData, callback) => {
+const updateExpense = (groupId, expenseId, updateData,actorUserId , callback) => {
   const {
     description,
     type,

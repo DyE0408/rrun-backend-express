@@ -374,6 +374,7 @@ router.put("/:groupId/expenses/:expenseId", upload.array("images", 5), async (re
     url: f.path,                 // URL segura
     publicId: f.filename || null // public_id en CloudinaryStorage
   }));
+  const actorUserId =req.user.id
 
   const updateData = {
     description,
@@ -386,7 +387,7 @@ router.put("/:groupId/expenses/:expenseId", upload.array("images", 5), async (re
     imagesToRemove,  // publicIds a eliminar
   };
 
-  return Groups.updateExpense(groupId, expenseId, updateData, (err, updatedGroup) => {
+  return Groups.updateExpense(groupId, expenseId, updateData, actorUserId ,(err, updatedGroup) => {
     if (err) {
       return res.status(500).json({ code: "ER", message: err.message || "Error actualizando gasto!" });
     }

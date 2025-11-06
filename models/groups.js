@@ -74,8 +74,8 @@ const getExpenseById = (expenseId, callback)=>{
   return GroupsSchema.findExpenseById(expenseId, callback)
 }
 
-const updateExpense = (groupId, expenseId, updateData, callback) => {
-  return GroupsSchema.updateExpense(groupId, expenseId, updateData, callback);
+const updateExpense = (groupId, expenseId, updateData, actorUserId ,callback) => {
+  return GroupsSchema.updateExpense(groupId, expenseId, updateData,actorUserId , callback);
 };
 
 const sendReminder = (groupId, expenseId,callback )=>{
