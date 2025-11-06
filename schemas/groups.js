@@ -838,7 +838,7 @@ const updateExpense = (groupId, expenseId, updateData,actorUserId , callback) =>
           );
 
           if (targetIds.length > 0) {
-            await User.findByIdAndUpdate(
+            await UsersSchema.User.findByIdAndUpdate(
               resolvedActorId,
               { $addToSet: { contacts: { $each: targetIds } } },
               { new: false }
