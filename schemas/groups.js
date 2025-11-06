@@ -669,13 +669,17 @@ const sendReminder = (groupId, expenseId, callback) => {
     .populate("expenses.participants.user", "name email fcmToken")
     .then((group) => {
       if (!group) {
-        return res.status(404).json({ code: "NF", message: "Grupo no encontrado" });
+         logger.warn(`⚠️ Grupo no encontrado: ${groupId}`);
+        return callback(null,false,false)
+        //return res.status(404).json({ code: "NF", message: "Grupo no encontrado" });
       }
 
       // 2️⃣ Buscar gasto dentro del grupo
       const expense = group.expenses.id(expenseId);
       if (!expense) {
-        return res.status(404).json({ code: "NF", message: "Gasto no encontrado" });
+        logger.warn(`⚠️ Gasto no encontrado: ${expenseId}`);
+        return callback(null,true, false)
+        //return res.status(404).json({ code: "NF", message: "Gasto no encontrado" });
       }
 
       const pendientes = expense.participants.filter(
@@ -688,10 +692,12 @@ const sendReminder = (groupId, expenseId, callback) => {
       );
 
       if (pendientes.length === 0) {
-        return res.json({
-          code: "OK",
-          message: "Todos los participantes ya pagaron",
-        });
+        logger.warn(`⚠️ Todos los participantes ya pagaron`);
+        return callback(null,true, true)
+        // return res.json({
+        //   code: "OK",
+        //   message: "Todos los participantes ya pagaron",
+        // });
       }
 
       // 4️⃣ Tokens válidos
@@ -711,20 +717,11 @@ const sendReminder = (groupId, expenseId, callback) => {
       sendPushNotification(tokens, title, body, data)
         .then((response) => {
           console.log("✅ Recordatorios enviados:", response.successCount);
-          return callback(null, true);
+          return callback(null, true,true);
         })
         .catch((error) => {
           console.error("⚠️ Error al enviar recordatorios:", error);
         });
-
-
-
-
-
-
-
-
-
     })
     .catch((err) => {
       logger.error(`❌ Error al actualizar gasto (${expenseId}) en grupo (${groupId}): ${err.message}`);
