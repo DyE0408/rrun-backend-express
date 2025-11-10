@@ -670,7 +670,7 @@ const sendReminder = (groupId, expenseId, callback) => {
     .then((group) => {
       if (!group) {
         logger.warn(`⚠️ Grupo no encontrado: ${groupId}`);
-        return callback(null, false, false)
+        return callback(null, false, false,0)
         //return res.status(404).json({ code: "NF", message: "Grupo no encontrado" });
       }
 
@@ -678,7 +678,7 @@ const sendReminder = (groupId, expenseId, callback) => {
       const expense = group.expenses.id(expenseId);
       if (!expense) {
         logger.warn(`⚠️ Gasto no encontrado: ${expenseId}`);
-        return callback(null, true, false)
+        return callback(null, true, false,0)
         //return res.status(404).json({ code: "NF", message: "Gasto no encontrado" });
       }
 
@@ -692,12 +692,8 @@ const sendReminder = (groupId, expenseId, callback) => {
       );
 
       if (pendientes.length === 0) {
-        logger.warn(`⚠️ Todos los participantes ya pagaron`);
-        return callback(null, true, true)
-        // return res.json({
-        //   code: "OK",
-        //   message: "Todos los participantes ya pagaron",
-        // });
+        logger.info(`✅ Todos los participantes ya pagaron o no tienen FCM token`);
+        return callback(null, true, true, 0);
       }
 
       // 4️⃣ Tokens válidos
@@ -717,15 +713,16 @@ const sendReminder = (groupId, expenseId, callback) => {
       sendPushNotification(tokens, title, body, data)
         .then((response) => {
           console.log("✅ Recordatorios enviados:", response.successCount);
-          return callback(null, true, true);
+          return callback(null, true, true,response.successCount );
         })
         .catch((error) => {
           console.error("⚠️ Error al enviar recordatorios:", error);
+          return callback(null, true, true,0);
         });
     })
     .catch((err) => {
-      logger.error(`❌ Error al actualizar gasto (${expenseId}) en grupo (${groupId}): ${err.message}`);
-      return callback(err);
+      logger.error(`❌ Error al procesar recordatorio (${expenseId}) en grupo (${groupId}): ${err.message}`);
+      return callback(err, false, false, 0);
     })
 
 

@@ -53,13 +53,18 @@ router.get("/:groupid/expenses/:id", (req, res) => {
 // ======================================================
 router.post("/:groupId/reminder/:expenseId", (req, res) => {
   const { groupId, expenseId } = req.params;
-  Groups.sendReminder(groupId, expenseId, (err, checkGrupo, checkGasto) => {
-    if (err) return res.status(500).json({ code: "ER", message: "Error obteniendo el gasto!" });
-    if (!checkGrupo) return res.status(404).json({ code: "NF", message: "Grupo no encontrado!" });
-    if (!checkGasto) return res.status(404).json({ code: "NF", message: "Gasto no encontrado!" });
-    res.json({ code: "OK", message: "Gasto encontrado!", data: { check } });
-  })
+   Groups.sendReminder(groupId, expenseId, (err, groupFound, expenseFound, notifiedCount) => {
+    if (err) return res.status(500).json({ code: "ER", message: "Error interno al enviar recordatorio" });
+    if (!groupFound) return res.status(404).json({ code: "NF", message: "Grupo no encontrado" });
+    if (!expenseFound) return res.status(404).json({ code: "NF", message: "Gasto no encontrado" });
+    if (notifiedCount === 0)
+      return res.json({ code: "OK", message: "No hay participantes pendientes de pago o sin token válido" });
 
+    res.json({
+      code: "OK",
+      message: `Recordatorio enviado a ${notifiedCount} participante(s) pendiente(s)`,
+    });
+  });
 });
 
 
