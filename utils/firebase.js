@@ -22,12 +22,17 @@ export const sendPushNotification = async (tokens, title, body, data = {}) => {
       tokens: tokensArray,
     };
 
-     const response = await admin.messaging().sendEachForMulticast(message);
+    const response = await admin.messaging().sendEachForMulticast(message);
     console.log("✅ Notificaciones enviadas:", response.successCount);
     if (response.failureCount > 0) {
       const failedTokens = tokensArray.filter((_, i) => !response.responses[i].success);
       console.log("❌ Tokens fallidos:", failedTokens);
     }
+    response.responses.forEach((res, idx) => {
+      if (!res.success) {
+        console.error(`❌ Error con token ${tokensArray[idx]}:`, res.error.message);
+      }
+    });
     return response;
   } catch (error) {
     console.error("❌ Error enviando notificación:", error);
